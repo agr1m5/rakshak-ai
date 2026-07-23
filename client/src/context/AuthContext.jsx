@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { signupRequest, loginRequest, fetchCurrentUser } from "../services/authService";
 
 const AuthContext = createContext(null);
 
@@ -6,26 +7,38 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // On mount, check if a token already exists (e.g. page refresh).
-  // Real "fetch current user" call gets added in Step 5.
+  // On mount (e.g. page refresh), if a token already exists, verify it's
+  // still valid by asking the API who it belongs to, rather than trusting
+  // a token that might be expired or revoked.
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) {
-      // Placeholder — Step 5 replaces this with a call to GET /api/auth/me
-      setUser({ placeholder: true });
+    if (!token) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    fetchCurrentUser()
+      .then(setUser)
+      .catch(() => {
+        // Token invalid/expired — api.js's response interceptor already
+        // cleared it from localStorage on the 401, just reset local state.
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const login = async (_credentials) => {
-    // Implemented in Step 5: call POST /api/auth/login,
-    // store the returned JWT, set the user.
-    throw new Error("login() not implemented yet — see Step 5");
+  const signup = async ({ name, email, password }) => {
+    const { user: newUser, token } = await signupRequest({ name, email, password });
+    localStorage.setItem("token", token);
+    setUser(newUser);
+    return newUser;
   };
 
-  const signup = async (_details) => {
-    // Implemented in Step 5: call POST /api/auth/signup
-    throw new Error("signup() not implemented yet — see Step 5");
+  const login = async ({ email, password }) => {
+    const { user: loggedInUser, token } = await loginRequest({ email, password });
+    localStorage.setItem("token", token);
+    setUser(loggedInUser);
+    return loggedInUser;
   };
 
   const logout = () => {

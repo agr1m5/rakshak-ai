@@ -17,6 +17,8 @@ async function bootstrap() {
     );
   });
 
+  // Prevent the process from dying silently on an unhandled promise
+  // rejection somewhere in the app — log it and shut down cleanly instead.
   process.on("unhandledRejection", (err) => {
     logger.error("Unhandled promise rejection:", err);
     server.close(() => process.exit(1));

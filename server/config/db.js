@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import { env } from "./env.js";
 import { logger } from "../utils/logger.js";
 
+// Fail fast: if Mongo isn't reachable, the server should refuse to
+// start rather than accept requests it can't actually serve.
 export async function connectDB() {
   if (!env.mongoUri) {
     throw new Error(
@@ -11,6 +13,9 @@ export async function connectDB() {
 
   mongoose.set("strictQuery", true);
 
+  // Mongoose 8 defaults are sane; these are the two worth being explicit
+  // about so a slow/unreachable cluster fails within a bounded time
+  // instead of hanging the boot process indefinitely.
   await mongoose.connect(env.mongoUri, {
     serverSelectionTimeoutMS: 8000,
   });

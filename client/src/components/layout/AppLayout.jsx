@@ -71,7 +71,7 @@ export default function AppLayout() {
           <div className="text-xs font-mono text-ink-400">v0.1.0</div>
         </header>
         <main className="flex-1 overflow-y-auto">
-          <div className="p-6 max-w-6xl">
+          <div className="p-6">
             <Outlet />
           </div>
         </main>
