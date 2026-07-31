@@ -22,6 +22,7 @@ const threatSchema = new mongoose.Schema(
         "xss",
         "directory_traversal",
         "command_injection",
+        "anomalous_pattern",
         "other",
       ],
       required: true,

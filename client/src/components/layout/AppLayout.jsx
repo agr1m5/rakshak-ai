@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -9,6 +9,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import SentinelMark from "../ui/SentinelMark";
 import StatusPulse from "../ui/StatusPulse";
+import ErrorBoundary from "../ErrorBoundary";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -19,6 +20,7 @@ const navItems = [
 
 export default function AppLayout() {
   const { logout } = useAuth();
+  const location = useLocation();
 
   return (
     <div className="flex h-screen bg-ink-950">
@@ -72,7 +74,9 @@ export default function AppLayout() {
         </header>
         <main className="flex-1 overflow-y-auto">
           <div className="p-6">
-            <Outlet />
+            <ErrorBoundary key={location.pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
       </div>

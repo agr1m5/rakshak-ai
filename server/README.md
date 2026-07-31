@@ -98,13 +98,92 @@ which one is active.
 
 **Ollama (default, free, local):**
 ```bash
-# separately, install Ollama: https://ollama.com/download
-ollama pull llama3.2
-ollama serve          # runs on http://localhost:11434 by default
+# macOS — pick one:
+brew install ollama                 # via Homebrew
+# or download the app: https://ollama.com/download
+
+ollama pull llama3.2                # downloads the model (a few GB)
+ollama serve                        # runs on http://localhost:11434
 ```
+
+Verify it's actually up and the model downloaded:
+```bash
+curl http://localhost:11434/api/tags
+```
+Should return JSON with `llama3.2` listed under `"models"`. If `"models":[]`,
+the pull either didn't run or didn't finish — re-run `ollama pull llama3.2`
+and wait for it to complete before testing chat.
+
+If the Ollama Mac app is installed and running (check the menu bar icon),
+`ollama serve` may already be running in the background — if you get
+"address already in use," that's why, just skip that step.
 
 **OpenAI (cloud, paid):** set `AI_PROVIDER=openai` and `OPENAI_API_KEY` in `.env`.
 
 Both providers throw a clear `502`/`500` error (with an actionable message,
 e.g. "Is ollama serve running?") rather than letting a raw connection error
 or bad API key leak to the client.
+
+## Log upload (Step 9)
+
+```
+GET    /api/logs        -> list uploaded logs (metadata only)
+POST   /api/logs         multipart/form-data, field name "file" -> upload a log
+GET    /api/logs/:id     -> single log's metadata
+DELETE /api/logs/:id     -> deletes the DB record AND the file on disk
+```
+
+- Accepted types: `.txt`, `.log`, `.json`, `.csv` — anything else is rejected with `400` before it touches disk.
+- Max size: `MAX_UPLOAD_MB` in `.env` (default 10MB) — oversized uploads get a clean `400`, not a crash.
+- Files are stored under `uploads/<userId>/<random-name><ext>` — the original filename is kept only as metadata (`originalName`), never trusted as the actual storage path.
+- New record's `status` starts as `"pending"` — Step 10's parser is what flips it to `"parsed"` or `"failed"`. No parsing happens yet in this step, on purpose.
+
+## Log parser (Step 10)
+
+Parsing runs automatically right after upload (synchronous — fine at the
+current `MAX_UPLOAD_MB` ceiling; a background job queue would be the
+production evolution for much larger files). `UploadedLog.status` flips to
+`"parsed"` or `"failed"` accordingly.
+
+```
+POST /api/logs/:id/parse   -> re-run parsing on an already-uploaded log
+```
+
+`services/logParser/`:
+- `patterns.js` — regexes/keywords shared by every file type (IP, Combined Log Format, failed-login keywords, suspicious-pattern tags).
+- `extractors.js` — one parser per file type (`parseTextEntries`, `parseJsonEntries` with NDJSON fallback, `parseCsvEntries`), each normalizing into a common `{ raw, ip, method, path, status, message }` shape regardless of source format. JSON/CSV field lookup is case-insensitive across common name variants (`ip`/`ip_address`/`clientIp`, etc.) since real-world logs don't agree on naming.
+- `aggregate.js` — turns normalized entries into the `parsedSummary` stored on the log: top IPs/URLs, status code counts, failed-login count + samples, suspicious-request tags (`sql-like`, `xss-like`, `path-traversal-like`, `command-injection-like`).
+
+Suspicious-request tags here are **pattern hints, not verdicts** — Step 11
+turns a subset of these into real `Threat` documents with severity and an
+AI-generated explanation.
+
+## Threat detection (Step 11)
+
+Runs automatically right after a successful parse (non-fatal if it fails —
+the log stays `parsed`, it just won't have threats until detection is
+retried). Also triggerable manually:
+
+```
+POST /api/logs/:id/detect-threats   -> re-run detection for one log
+GET  /api/threats?logId=...         -> list threats (optionally filtered by log)
+GET  /api/threats/:id               -> single threat
+```
+
+`services/threatDetectionService.js`:
+- Maps Step 10's pattern tags to real threat types: `sql-like` → `sql_injection`, `xss-like` → `xss`, `path-traversal-like` → `directory_traversal`, `command-injection-like` → `command_injection`.
+- **Brute force** is detected separately, from per-IP failed-login counts (added to `aggregate.js` in this step): 5+ failures from one IP = `medium`, 10+ = `high`.
+- Multiple flagged lines from the same IP for the same attack type are combined into **one** `Threat` document with combined evidence, not duplicated.
+- Each threat gets an AI-generated explanation via `services/ai/aiProvider.js`'s new `generateThreatExplanation()` — reuses the same Ollama/OpenAI dispatch as chat, different system prompt. If the AI call fails, the threat is still saved (type/severity/evidence are still valid) with `explanation: null` rather than losing the detection.
+- Re-running detection (re-parse, or manual re-detect) replaces prior threats for that log rather than accumulating duplicates.
+
+## Log template mining (Step 11 extension — Drain3)
+
+Optional Python microservice (`log-template-service/`, separate from this
+Node app) that clusters log lines structurally and flags rare/unusual ones
+as `anomalous_pattern` threats (low severity) — a supplementary signal on
+top of the regex-based detection above, catching attack variants the
+hand-written patterns don't recognize. See `log-template-service/README.md`
+for setup. Fully optional at runtime — set
+`LOG_TEMPLATE_SERVICE_ENABLED=false`, or just don't run it, and log parsing
+degrades gracefully with no errors.

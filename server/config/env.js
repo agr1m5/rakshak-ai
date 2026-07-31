@@ -42,6 +42,13 @@ export const env = {
   ollamaModel: process.env.OLLAMA_MODEL || "llama3.2",
   openaiApiKey: process.env.OPENAI_API_KEY || "",
   openaiModel: process.env.OPENAI_MODEL || "gpt-4o-mini",
+
+  // Log upload (Step 9)
+  maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || 10,
+
+  // Log template mining (Step 11 extension) — Python/Drain3 microservice
+  logTemplateServiceUrl: process.env.LOG_TEMPLATE_SERVICE_URL || "http://localhost:8001",
+  logTemplateServiceEnabled: process.env.LOG_TEMPLATE_SERVICE_ENABLED !== "false",
 };
 
 export const isProduction = env.nodeEnv === "production";

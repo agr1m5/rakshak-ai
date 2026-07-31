@@ -6,9 +6,10 @@ const baseURL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const api = axios.create({
   baseURL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  // No forced Content-Type here: Axios auto-sets application/json for
+  // plain object bodies, and — importantly — auto-sets multipart/form-data
+  // with the correct boundary for FormData bodies (log uploads, Step 9).
+  // A hardcoded header here would silently break file uploads.
 });
 
 // Attach the JWT (once auth exists, Step 5) to every outgoing request.
