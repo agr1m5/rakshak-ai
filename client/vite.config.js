@@ -7,21 +7,19 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      // @ maps to src/ so imports look like: import X from '@/components/...'
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   server: {
-    port: 5173,
-    // Proxy API calls and WebSocket to the backend during development
-    // so the browser never hits CORS issues.
+    port: 5180,
+    strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5050',
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5050',
         changeOrigin: true,
         ws: true,
       },
