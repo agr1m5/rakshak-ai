@@ -187,3 +187,68 @@ hand-written patterns don't recognize. See `log-template-service/README.md`
 for setup. Fully optional at runtime — set
 `LOG_TEMPLATE_SERVICE_ENABLED=false`, or just don't run it, and log parsing
 degrades gracefully with no errors.
+
+## Threat intelligence (Step 12)
+
+```
+GET /api/threat-intel/virustotal/ip/:ip       -> IP reputation (needs VT_API_KEY)
+GET /api/threat-intel/virustotal/hash/:hash   -> file hash reputation (needs VT_API_KEY)
+GET /api/threat-intel/cve/:cveId              -> single CVE lookup, e.g. CVE-2021-44228 (NVD, no key required)
+GET /api/threat-intel/mitre/:techniqueId      -> MITRE ATT&CK technique, e.g. T1190 (live data, cached)
+GET /api/threat-intel/owasp                   -> full OWASP Top 10:2021 list (static)
+GET /api/threat-intel/owasp/:categoryId       -> single category, e.g. A03 (static)
+```
+
+Rate-limited separately from the rest of the API (`threatIntelLimiter`,
+20/min) since these hit external free-tier services with their own limits.
+
+**Four providers, two different integration approaches — deliberately:**
+
+| Provider | Approach | Why |
+|---|---|---|
+| VirusTotal | Live API, needs `VT_API_KEY` | Real per-IP/hash reputation data — nothing to fake here. |
+| CVE (NVD) | Live API, no key required (optional `NVD_API_KEY` for higher rate limits) | Same — real, current CVE data. |
+| MITRE ATT&CK | Live data, but **fetched once and cached** | The full technique dataset is a ~46MB STIX bundle hosted on GitHub — fetching that per-request would be wasteful and slow. First lookup fetches and extracts a lean `{id, name, description, url}` index to `cache/mitre-technique-index.json` (30-day TTL); every lookup after that is instant, no network call. |
+| OWASP Top 10 | Static, hand-maintained | There's no live "OWASP API" — the Top 10 list itself only changes every 3-4 years (2017, 2021...). A live call would be pointless. |
+
+**Automatic enrichment**: every `Threat` created by `threatDetectionService.js`
+automatically gets `mitre` and `owasp` fields attached, resolved from a
+static `type -> {mitreId, owaspId}` mapping (`threatIntel/threatTypeMapping.js`)
+at detection time. This never blocks threat creation — a MITRE fetch
+hiccup just means `mitre: null` on that threat, not a failed detection.
+
+**On-demand only**: VirusTotal lookups are *not* automatic (unlike MITRE/OWASP)
+— they need an API key you may not have, and free-tier VirusTotal has a
+low rate limit (4 req/min). The frontend only calls it when you click
+"Check IP reputation" on a specific threat.
+
+## Incident reports (Step 13)
+
+```
+GET    /api/reports              -> list reports (metadata only)
+POST   /api/reports    { logId } -> generate a new report from a parsed log
+GET    /api/reports/:id          -> single report, threats populated
+GET    /api/reports/:id/download -> streams the PDF
+DELETE /api/reports/:id          -> deletes the DB record AND the PDF on disk
+```
+
+Report generation requires the log to already be `status: "parsed"` — you
+can't generate a report from a log that hasn't been analyzed yet.
+
+`services/reportGenerator/`:
+- `index.js` — orchestrator. Computes overall severity (max across the
+  log's threats), calls the AI for an executive summary (falls back to a
+  templated one if the AI provider is unreachable — report generation
+  itself never fails over an AI hiccup), builds the mitigations list
+  (deduped across threat types present) and a chronological timeline
+  (log upload + each threat's detection time), saves the `IncidentReport`
+  doc, then renders the PDF and stores its path.
+- `mitigationMap.js` — static, per-attack-type mitigation text. Deliberately
+  not AI-generated — these are settled security practices, not something
+  that benefits from being regenerated fresh each time.
+- `pdfBuilder.js` — pure PDFKit layout code: header, executive summary,
+  detected threats (with MITRE/OWASP reference links from Step 12), 
+  mitigations, timeline, and page-numbered footer.
+
+PDFs are stored under `reports/<userId>/<reportId>.pdf` (gitignored, same
+pattern as `uploads/`).

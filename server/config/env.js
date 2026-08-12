@@ -49,6 +49,10 @@ export const env = {
   // Log template mining (Step 11 extension) — Python/Drain3 microservice
   logTemplateServiceUrl: process.env.LOG_TEMPLATE_SERVICE_URL || "http://localhost:8001",
   logTemplateServiceEnabled: process.env.LOG_TEMPLATE_SERVICE_ENABLED !== "false",
+
+  // Threat intelligence (Step 12)
+  virusTotalApiKey: process.env.VT_API_KEY || "",
+  nvdApiKey: process.env.NVD_API_KEY || "", // optional — raises NVD rate limit if set
 };
 
 export const isProduction = env.nodeEnv === "production";

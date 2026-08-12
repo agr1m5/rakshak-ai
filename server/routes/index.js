@@ -5,6 +5,8 @@ import dashboardRoutes from "./dashboardRoutes.js";
 import chatRoutes from "./chatRoutes.js";
 import logRoutes from "./logRoutes.js";
 import threatRoutes from "./threatRoutes.js";
+import threatIntelRoutes from "./threatIntelRoutes.js";
+import reportRoutes from "./reportRoutes.js";
 
 const router = Router();
 
@@ -14,8 +16,7 @@ router.use("/dashboard", dashboardRoutes);
 router.use("/chat", chatRoutes);
 router.use("/logs", logRoutes);
 router.use("/threats", threatRoutes);
-
-// Future steps register here, e.g.:
-// router.use("/reports", reportRoutes);  // Step 13
+router.use("/threat-intel", threatIntelRoutes);
+router.use("/reports", reportRoutes);
 
 export default router;

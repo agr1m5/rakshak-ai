@@ -1,6 +1,7 @@
 import { Threat } from "../models/Threat.js";
 import { ApiError } from "../utils/ApiError.js";
 import { generateThreatExplanation } from "./ai/aiProvider.js";
+import { enrichThreatType } from "./threatIntel/index.js";
 import { logger } from "../utils/logger.js";
 
 const TAG_TO_TYPE = {
@@ -99,6 +100,11 @@ export async function detectThreatsForLog(userId, log) {
       logger.warn(`AI explanation failed for a ${candidate.type} threat:`, err.message);
     }
 
+    // Step 12 — best-effort reference enrichment (MITRE ATT&CK technique,
+    // OWASP Top 10 category). enrichThreatType never throws — a network
+    // hiccup on MITRE's first-ever fetch shouldn't block threat creation.
+    const { mitre, owasp } = await enrichThreatType(candidate.type);
+
     const threat = await Threat.create({
       userId,
       logId: log._id,
@@ -107,6 +113,8 @@ export async function detectThreatsForLog(userId, log) {
       sourceIp: candidate.sourceIp,
       evidence: candidate.evidence.slice(0, 10),
       explanation,
+      mitre,
+      owasp,
     });
     threats.push(threat);
   }
