@@ -68,7 +68,18 @@ Progress so far:
 - [x] Step 9 — Log upload (Multer, per-user storage, drag & drop UI)
 - [x] Step 10 — Log parser (IPs, URLs, status codes, failed logins, flagged requests)
 - [x] Step 11 — Threat detection (classified threats, severity, AI explanations, + Drain3 anomaly detection)
-- [ ] Step 12 — Threat intelligence APIs
-- [ ] Step 13 — Report generator
+- [x] Step 12 — Threat intelligence (VirusTotal, CVE/NVD, MITRE ATT&CK, OWASP Top 10)
+- [x] Step 13 — Incident reports (PDF generation, AI executive summary, mitigations, timeline)
 - [ ] Step 14 — Charts
-- [ ] Step 15 — Deployment
+
+## Rakshak Live (pivot in progress)
+
+See `rakshak-live-architecture.md` and `rakshak-live-prompt.md` for the
+full design. Local-only detection: raw activity never leaves the machine,
+only classified findings do.
+
+- [x] Phase 1 — Findings ingestion: Socket.IO server, agent pairing (separate revocable token), `CorrelatedIncident` model, `Threat.source` field. Tested with simulated findings, no real agent yet.
+- [ ] Phase 2 — The real local agent: log/process/network collectors + local detection + local correlation
+- [ ] Phase 3 — Live Operations Dashboard (real-time feed, replacing the static dashboard)
+- [ ] Phase 4 — Desktop App Shell (Electron): menu bar icon, notifications, launch at login, packaged `.dmg`
+- [ ] Phase 5 — Security hardening pass
